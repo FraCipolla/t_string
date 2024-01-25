@@ -2,6 +2,7 @@
 
 # include <string.h>
 # include <stdlib.h>
+# include <stdio.h>
 
 #define SMALL_CHUNK 128
 #define MEDIUM_CHUNK 512
@@ -21,10 +22,12 @@ typedef struct s_string {
 	char buffer[];
 }	t_string;
 
-t_string *string_init(char *str) {
+typedef t_string * string;
+
+string string_init(char *str) {
 	size_t len = strlen(str);
 	size_t to_alloc = len < SMALL_CHUNK ? SMALL_CHUNK : len < MEDIUM_CHUNK ? MEDIUM_CHUNK : len < BIG_CHUNK ? BIG_CHUNK : len + SMALL_CHUNK;
-	t_string *s = (t_string *)malloc(sizeof(t_string) + to_alloc + 1);
+	string s = (string)malloc(sizeof(t_string) + to_alloc + 1);
 	if (!s) {
 		return &(t_string){.error=HEAP_ALLOC_ERROR};
 	}
@@ -37,16 +40,43 @@ t_string *string_init(char *str) {
 	return s;
 }
 
-#define String string_init
-typedef t_string * string;
+string cpy_ctor(string str) {
+	string s = (string)malloc(sizeof(t_string) + str->capacity + 1);
+	if (!s) {
+		return &(t_string){.error=HEAP_ALLOC_ERROR};
+	}
+	s->capacity = str->capacity;
+	s->size = str->size;
+	for (size_t i = 0; i < str->size; i++) {
+		s->buffer[i] = str->buffer[i];
+	}
+	s->buffer[s->size] = 0;
+	return s;
+}
+
+string string_init_size(char *str, size_t len) {
+	size_t to_alloc = len < SMALL_CHUNK ? SMALL_CHUNK : len < MEDIUM_CHUNK ? MEDIUM_CHUNK : len < BIG_CHUNK ? BIG_CHUNK : len + SMALL_CHUNK;
+	string s = (string)malloc(sizeof(t_string) + to_alloc + 1);
+	if (!s) {
+		return &(t_string){.error=HEAP_ALLOC_ERROR};
+	}
+	s->capacity = to_alloc;
+	s->size = len;
+	for (size_t i = 0; i < len; i++) {
+		s->buffer[i] = str[i];
+	}
+	s->buffer[len] = 0;
+	return s;
+}
 
 void clear(string s) { memset(s->buffer, 0, s->size); s->size = 0; s->error=NO_ERR; }
 
-t_string *strcpy_s_c(t_string *dest, const char *search)
+size_t length_ptr(string s) { return s->size; }
+string strcpy_s_c(string dest, const char *search)
 {
 	const size_t len = strlen(search);
 	if (len >= dest->capacity) {
-		// emit warning
+		// #warning not enought storage for strcpy, dest will be truncated
 		dest->error = TRUNCATED;
 	}
 	size_t i = 0;
@@ -60,8 +90,7 @@ t_string *strcpy_s_c(t_string *dest, const char *search)
 	}
 	return dest;
 }
-
-t_string *strcpy_s_s(t_string *dest, const t_string *search)
+string strcpy_s_s(string dest, const string search)
 {
 	if (search->size >= dest->capacity) {
 		// emit warning
@@ -78,8 +107,7 @@ t_string *strcpy_s_s(t_string *dest, const t_string *search)
 	}
 	return dest;
 }
-
-t_string *strcat_s_c(t_string *dest, const char *search)
+string strcat_s_c(string dest, const char *search)
 {
 	const size_t len = strlen(search);
 	if (dest->size + len >= dest->capacity) {
@@ -93,8 +121,7 @@ t_string *strcat_s_c(t_string *dest, const char *search)
 	dest->buffer[dest->size] = 0;
 	return dest;
 }
-
-t_string *strcat_s_s(t_string *dest, const t_string *search)
+string strcat_s_s(string dest, const string search)
 {
 	if (dest->size + search->size >= dest->capacity) {
 		// emit warning
@@ -107,12 +134,62 @@ t_string *strcat_s_s(t_string *dest, const t_string *search)
 	dest->buffer[dest->size] = 0;
 	return dest;
 }
+string strchr_s(string s, int c)
+{
+	for (size_t i = 0; i < s->size; i++) {
+		if (s->buffer[i] == c) {
+			return string_init_size(&s->buffer[i], s->size - i);
+		}
+	}
+	return NULL;
+}
+string strrchr_s(string s, int c)
+{
+	for (size_t i = s->size; i > 0; --i) {
+		if (s->buffer[i] == c) {
+			return string_init_size(&s->buffer[i], s->size - i);
+		}
+	}
+	return NULL;
+}
+string strstr_s_s(string haystack, const string needle)
+{
+	for (size_t i = 0; i < haystack->size; i++) {
+		if (haystack->buffer[i] == needle->buffer[0]) {
+			for (size_t j = 0; j < needle->size && i < haystack->size; j++, i++) {
+				if (haystack->buffer[i] != needle->buffer[j]) {
+					break;
+				} else if (j == needle->size -1) {
+					return string_init_size(&haystack->buffer[i - j], haystack->size - (i - j));
+				}
+			}
+		}
+	}
+	return NULL;
+}
+string strstr_s_c(string haystack, const char * needle)
+{
+	size_t len = strlen(needle);
+	for (size_t i = 0; i < haystack->size; i++) {
+		if (haystack->buffer[i] == needle[0]) {
+			size_t tmp = i;
+			for (size_t j = 0; needle[j] && i < haystack->size; j++, i++) {
+				if (haystack->buffer[i] != needle[j]) {
+					i = tmp;
+					break;
+				} else if (j == len - 1) {
+					return string_init_size(&haystack->buffer[i - j], haystack->size - (i - j));
+				}
+			}
+		}
+	}
+	return NULL;
+}
 
-size_t length_ptr(t_string *s) { return s->size; }
-//size_t length(t_string s) { return s.size; }
-
-
-
-#define strlen(a) _Generic((a), t_string * : length_ptr, default : strlen) (a)
+#define String(a) _Generic((a), string : cpy_ctor, default : string_init) (a)
+#define strlen(a) _Generic((a), string  : length_ptr, default : strlen) (a)
 #define strcpy(a, b) _Generic((a), string : _Generic(b, string : strcpy_s_s, char * : strcpy_s_c), default : strcpy) (a, b)
 #define strcat(a, b) _Generic((a), string : _Generic(b, string : strcat_s_s, char * : strcat_s_c), default : strcat) (a, b)
+#define strchr(a, b) _Generic((a), string : strchr_s, default : strchr) (a, b)
+#define strrchr(a, b) _Generic((a), string : strrchr_s, default : strrchr) (a, b)
+#define strstr(a, b) _Generic((a), string : _Generic(b, string: strstr_s_s, char * : strstr_s_c), default : strstr) (a, b)

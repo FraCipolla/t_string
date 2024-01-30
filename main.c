@@ -4,7 +4,13 @@ int main() {
 	string s = String("hello world!");
 	string s2 = String(s);
 
-	printf("t_string %ld\n", strlen(s));
+	dstring *dstr = init("prova");
+
+	for_each(dstr->begin, dstr->end, it(it, {
+		putchar(*it);
+		}));
+
+	printf("\nt_string %ld\n", strlen(s));
 	printf("string.h %ld\n", strlen(s2));
 
 	string s3 = String(" world!");

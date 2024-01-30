@@ -22,6 +22,30 @@ typedef struct s_string {
 	char buffer[];
 }	t_string;
 
+typedef struct string_container {
+	size_t size;
+	size_t capacity;
+	int error;
+}	capacity;
+
+typedef char * iterator;
+
+typedef struct d_string {
+	capacity cap;
+	iterator begin;
+	iterator end;
+	char buffer[];
+}	dstring;
+
+dstring *init (char *str) {
+	dstring *ret = malloc(sizeof(dstring) + SMALL_CHUNK);
+	strcpy(ret->buffer, str);
+	// ret->it = (iterator){.begin=&ret->buffer[0], .end=&ret->buffer[strlen(str)]};
+	ret->begin = &ret->buffer[0];
+	ret->end = &ret->buffer[strlen(str)];
+	return ret;
+}
+
 typedef t_string * string;
 
 string string_init(char *str) {
@@ -39,7 +63,6 @@ string string_init(char *str) {
 	s->buffer[len] = 0;
 	return s;
 }
-
 string cpy_ctor(string str) {
 	string s = (string)malloc(sizeof(t_string) + str->capacity + 1);
 	if (!s) {
@@ -53,7 +76,6 @@ string cpy_ctor(string str) {
 	s->buffer[s->size] = 0;
 	return s;
 }
-
 string string_init_size(char *str, size_t len) {
 	size_t to_alloc = len < SMALL_CHUNK ? SMALL_CHUNK : len < MEDIUM_CHUNK ? MEDIUM_CHUNK : len < BIG_CHUNK ? BIG_CHUNK : len + SMALL_CHUNK;
 	string s = (string)malloc(sizeof(t_string) + to_alloc + 1);
@@ -68,8 +90,14 @@ string string_init_size(char *str, size_t len) {
 	s->buffer[len] = 0;
 	return s;
 }
-
-void clear(string s) { memset(s->buffer, 0, s->size); s->size = 0; s->error=NO_ERR; }
+string emplace(size_t n) {
+	string ret = malloc(sizeof(string) + n);
+	ret->capacity = n;
+	ret->size = 0;
+	ret->buffer[0] = 0;
+	return ret;
+}
+void clear(string s) { memset(s->buffer, 0, s->size); s->size = 0; s->error=NO_ERR; s->buffer[0] = 0;}
 
 size_t length_ptr(string s) { return s->size; }
 string strcpy_s_c(string dest, const char *search)
@@ -96,7 +124,7 @@ string strcpy_s_s(string dest, const string search)
 		// emit warning
 		dest->error = TRUNCATED;
 	}
-	int i = 0;
+	size_t i = 0;
 	while (i < dest->capacity && i < search->size) {
 		dest->buffer[i] = search->buffer[i];
 		++i;
@@ -127,7 +155,7 @@ string strcat_s_s(string dest, const string search)
 		// emit warning
 		dest->error = TRUNCATED;
 	}
-	int i = 0;
+	size_t i = 0;
 	while (dest->size < dest->capacity && search->buffer[i] && i < search->size) {
 		dest->buffer[dest->size++] = search->buffer[i++];
 	}
@@ -185,6 +213,10 @@ string strstr_s_c(string haystack, const char * needle)
 	}
 	return NULL;
 }
+
+#define it(a, exp) {iterator a = __it__; exp}
+#define val(a, exp) {typeof(*__it__) a = __it__; exp}
+#define for_each(a, b, lamb) for (iterator __it__ = a; __it__ != b; __it__++) lamb
 
 #define String(a) _Generic((a), string : cpy_ctor, default : string_init) (a)
 #define strlen(a) _Generic((a), string  : length_ptr, default : strlen) (a)

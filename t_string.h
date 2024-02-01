@@ -1,8 +1,11 @@
 #pragma once
 
+# include "npow.h"
 # include <string.h>
 # include <stdlib.h>
 # include <stdio.h>
+# include <stdbool.h>
+# include <printf.h>
 
 #define SMALL_CHUNK 128
 #define MEDIUM_CHUNK 512
@@ -18,37 +21,62 @@ enum STR_ERR {
 typedef struct s_string {
 	size_t size;
 	size_t capacity;
+	iterator begin;
+	iterator end;
 	int error;
 	char buffer[];
 }	t_string;
-
-typedef struct string_container {
+typedef struct s_string_128 {
 	size_t size;
 	size_t capacity;
-	int error;
-}	capacity;
-
-typedef char * iterator;
-
-typedef struct d_string {
-	capacity cap;
 	iterator begin;
 	iterator end;
-	char buffer[];
-}	dstring;
-
-dstring *init (char *str) {
-	dstring *ret = malloc(sizeof(dstring) + SMALL_CHUNK);
-	strcpy(ret->buffer, str);
-	// ret->it = (iterator){.begin=&ret->buffer[0], .end=&ret->buffer[strlen(str)]};
-	ret->begin = &ret->buffer[0];
-	ret->end = &ret->buffer[strlen(str)];
-	return ret;
-}
+	int error;
+	char buffer[128];
+}	string_128;
+typedef struct s_string_512 {
+	size_t size;
+	size_t capacity;
+	iterator begin;
+	iterator end;
+	int error;
+	char buffer[512];
+}	string_512;
+typedef struct s_string_4096 {
+	size_t size;
+	size_t capacity;
+	iterator begin;
+	iterator end;
+	int error;
+	char buffer[4096];
+}	string_4096;
 
 typedef t_string * string;
 
+bool g_initialize_printf_spec = false;
+static int printf_arginfo_T(const struct printf_info *info, size_t n, int argtypes[n], int size[n])
+{
+    /* "%T" always takes one argument, a pointer to t_string. */
+    if (n > 0) {
+        argtypes[0] = PA_POINTER;
+    }
+
+    return 1;
+} /* printf_arginfo_T */
+static int
+printf_output_T(FILE *stream, const struct printf_info *info, const void *const *args)
+{
+	string str = *(string *)(args[0]);
+	if (str->size == 0) { return 0; }
+	fprintf(stream, "%s", str->buffer);
+    return str->size;
+} /* printf_output_T */
+
 string string_init(char *str) {
+	if (g_initialize_printf_spec == false) {
+		register_printf_specifier('T', printf_output_T, printf_arginfo_T);
+		g_initialize_printf_spec = true;
+	}
 	size_t len = strlen(str);
 	size_t to_alloc = len < SMALL_CHUNK ? SMALL_CHUNK : len < MEDIUM_CHUNK ? MEDIUM_CHUNK : len < BIG_CHUNK ? BIG_CHUNK : len + SMALL_CHUNK;
 	string s = (string)malloc(sizeof(t_string) + to_alloc + 1);
@@ -57,6 +85,8 @@ string string_init(char *str) {
 	}
 	s->capacity = to_alloc;
 	s->size = len;
+	s->begin = &s->buffer[0];
+	s->end = &s->buffer[s->size];
 	for (size_t i = 0; i < len; i++) {
 		s->buffer[i] = str[i];
 	}
@@ -64,6 +94,10 @@ string string_init(char *str) {
 	return s;
 }
 string cpy_ctor(string str) {
+	if (g_initialize_printf_spec == false) {
+		register_printf_specifier('T', printf_output_T, printf_arginfo_T);
+		g_initialize_printf_spec = true;
+	}
 	string s = (string)malloc(sizeof(t_string) + str->capacity + 1);
 	if (!s) {
 		return &(t_string){.error=HEAP_ALLOC_ERROR};
@@ -90,12 +124,13 @@ string string_init_size(char *str, size_t len) {
 	s->buffer[len] = 0;
 	return s;
 }
-string emplace(size_t n) {
-	string ret = malloc(sizeof(string) + n);
-	ret->capacity = n;
-	ret->size = 0;
-	ret->buffer[0] = 0;
-	return ret;
+void emplace(string *s, size_t n) {
+	*s = malloc(sizeof(t_string) + n);
+	(*s)->begin = &(*s)->buffer[0];
+	(*s)->end = (*s)->begin;
+	(*s)->capacity = n;
+	(*s)->size = 0;
+	(*s)->buffer[0] = 0;
 }
 void clear(string s) { memset(s->buffer, 0, s->size); s->size = 0; s->error=NO_ERR; s->buffer[0] = 0;}
 
@@ -214,10 +249,6 @@ string strstr_s_c(string haystack, const char * needle)
 	return NULL;
 }
 
-#define it(a, exp) {iterator a = __it__; exp}
-#define val(a, exp) {typeof(*__it__) a = __it__; exp}
-#define for_each(a, b, lamb) for (iterator __it__ = a; __it__ != b; __it__++) lamb
-
 #define String(a) _Generic((a), string : cpy_ctor, default : string_init) (a)
 #define strlen(a) _Generic((a), string  : length_ptr, default : strlen) (a)
 #define strcpy(a, b) _Generic((a), string : _Generic(b, string : strcpy_s_s, char * : strcpy_s_c), default : strcpy) (a, b)
@@ -225,3 +256,23 @@ string strstr_s_c(string haystack, const char * needle)
 #define strchr(a, b) _Generic((a), string : strchr_s, default : strchr) (a, b)
 #define strrchr(a, b) _Generic((a), string : strrchr_s, default : strrchr) (a, b)
 #define strstr(a, b) _Generic((a), string : _Generic(b, string: strstr_s_s, char * : strstr_s_c), default : strstr) (a, b)
+#define read_str_std(a, b, ...) read(a, b, __VA_ARGS__)
+#define read_str(a, b) read_string(a, b)
+#define read(a, b, ...) read_str ## __VA_OPT__(_std)(a, b __VA_OPT__(,) __VA_ARGS__)
+void pstring(string s) { write(1, s->buffer, s->size); }
+
+ssize_t read_string(int fd, string buf)
+{
+	size_t old_size = buf->size;
+	ssize_t n = read(fd, (void *)buf->buffer, buf->capacity);
+	if (n == -1) {
+		return n;
+	} else if (n > 0) {
+		// if read is successfull remaining buff is cleared
+		while (n <= buf->size) {
+			buf->buffer[buf->size--] = 0;
+		}
+		buf->size = n;
+	}
+	return n;
+}

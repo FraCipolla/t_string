@@ -2,7 +2,7 @@
 type string implementation with string.h compatibility
 
 The ambition of this project is to give an idea on how to possibly implement some extra functionality that could interfere with standard C libraries.
-We all know that C is considered an unsafe language, and one of the main reason is strings are treated as null terminating sequence of characters. This could lead to some nasty behaviour, like buffer overflow or segfault.
+We all know that C is considered an unsafe language, and one of the main reasons is strings are treated as null terminating sequence of characters. This could lead to some nasty behaviour, like buffer overflow or segfault.
 
 ## **index:**
   - [Declare your struct](#declare-your-struct)
@@ -13,11 +13,11 @@ We all know that C is considered an unsafe language, and one of the main reason 
   - [Conclusion](#conclusion)
 
 ### Declare your struct
-First thing first, we need to declare our string struct. It's just a struct with a size, a capacity, and the actual char array. It's important to notice that I've declared the array as a char[] without any size. This is called 'Flexible array member'. For more info about this, you can check the wikipedia page: https://en.wikipedia.org/wiki/Flexible_array_member
-Basically the idea is that you declare an empty array as the last element of the struct. When you allocating memory, any extra space is accessible using the char[].
+First, we need to declare our string struct. It's just a struct with a size, a capacity, and the actual char array. It's important to notice that I've declared the array as a char[] without any size. This is called 'Flexible array member'. For more info about this, you can check the wikipedia page: https://en.wikipedia.org/wiki/Flexible_array_member.
+Basically the idea is that you declare an empty array as the last element of the struct. When you allocate memory, any extra space is accessible using the char[].
 I've choosed this option over the plain char * because this permit to allocate memory for the string in one go without the need to double malloc the struct.
 It's faster and cleaner.
-I've also adding 2 char pointers. These should be use as iterators, if we wanna iterate the array using pointers instead of index. Note that there's no actually any benefit to use pointers instead of index, but I'm planning to add range loops as well, and using pointers is much more safer.
+I've also added 2 char pointers. These should be use as iterators, if we wanna iterate the array using pointers instead of index. Note that there's no actually benefit to use pointers instead of index, but I'm planning to add range loops as well, and using pointers is much more safer.
 ```
 typedef char * iterator;
 typedef struct s_string {
@@ -50,21 +50,20 @@ string string_init(char *str) {
 	return s;
 }
 ```
-Nothing to fency here. I decided to allocate fixed amount of memory for our array, so it will be faster to perform some operation like concatenation ecc.
+Nothing too fency here. I decided to allocate fixed amount of memory for our array, so it will be faster to perform some operation like concatenation ecc.
 Note that like c++ strings, the end pointer point to the element after the last.
 
 ### Polymorphism
-So, after many attempts spent trying to overload standard libraries functions, it appeared the  easiest way was the right way.
+So, after many attempts spent trying to overload standard libraries functions, it appeared that the easiest way was also the right way.
 Using C11 feature _Generic, we can define a macro that choose the correct function based on the parameters passed.
 What was even cooler, _Generic works at comptime, while usually macro works inside the preprocessor.
 This is very important, because it allows to #define an existing function as a _Generic macro.
 Let's make an example to clear this statement:
 Let's overload the simplest string.h function, strlen, using _Generic macro:
 ```
-#define strlen(a) _Generic((a), string  : length_ptr, default : strlen) (a)
+#define strlen(a) _Generic((a), string  : length, default : strlen) (a)
 ```
-this is the equivalent of:
-calling a preprocessor macro that substitute strlen with
+this is the equivalent of calling a preprocessor macro that substitute strlen with
 ```
 _Generic((a), string  : length, default : strlen) (a)
 ```
@@ -81,7 +80,7 @@ Using some C23 functionanlity I was also able to overload read function passing 
 This gave me so many ideas to extend C functionality and build something a little more modern.
 
 ### Special Mention
-I don't know how many are aware of this, but whiler implementing this struct I discovered you can add specs to printf, and passing the function explaining how to print your custom spec.
+I don't know how many are aware of this, but while implementing this struct I discovered you can add specs to printf, and passing the function explaining how to print your custom spec.
 ```
 register_printf_specifier('T', printf_output_T, printf_arginfo_T);
 ```

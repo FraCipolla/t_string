@@ -78,3 +78,9 @@ I don't know how many are aware of this, but whiler implementing this struct I d
 register_printf_specifier('T', printf_output_T, printf_arginfo_T);
 ```
 This is the function to call to add your specifier. In this case 'T' is the specifier to print my string, printf_output_T the function that explain how to print it, and printf_arginfo_T the function that explain how many arguments takes the specifier (1 in our case, a pointer to t_string). What is cool is that I can check before printing if the string will segfault and crash the program, reading the size, and I can skip the print in case it's 0.
+The really big backfire is that compiler will emit a warning. This can't basically be avoided.
+But I'm going to try to build a library to print using new C functionality.
+
+Conclusion
+That's all for the moment. I appreciate the time you spent reading this. I hope it could be helpful to someone, and any suggestion is highly appreciated. I will keep updating this library until it could be used for real projects.
+I'm planning on building a library that simulate range loops and iterator dynamics, to allow easy and clean operation on arrays. Unfortunately, I haven't found any solution to simulate lambdas, so I need to find another way to pass the expression to apply to each element of a range.

@@ -1,11 +1,12 @@
 #pragma once
 
-# include "npow.h"
 # include <string.h>
 # include <stdlib.h>
 # include <stdio.h>
 # include <stdbool.h>
 # include <printf.h>
+# include <stdarg.h>
+# include <unistd.h>
 
 #define SMALL_CHUNK 128
 #define MEDIUM_CHUNK 512
@@ -17,6 +18,8 @@ enum STR_ERR {
 	HEAP_ALLOC_ERROR,
 	TRUNCATED,
 };
+
+typedef char * iterator;
 
 typedef struct s_string {
 	size_t size;
@@ -63,11 +66,10 @@ static int printf_arginfo_T(const struct printf_info *info, size_t n, int argtyp
 
     return 1;
 } /* printf_arginfo_T */
-static int
-printf_output_T(FILE *stream, const struct printf_info *info, const void *const *args)
+static int printf_output_T(FILE *stream, const struct printf_info *info, const void *const *args)
 {
 	string str = *(string *)(args[0]);
-	if (str->size == 0) { return 0; }
+	if (!str || str->size == 0) { return 0; }
 	fprintf(stream, "%s", str->buffer);
     return str->size;
 } /* printf_output_T */
@@ -134,7 +136,7 @@ void emplace(string *s, size_t n) {
 }
 void clear(string s) { memset(s->buffer, 0, s->size); s->size = 0; s->error=NO_ERR; s->buffer[0] = 0;}
 
-size_t length_ptr(string s) { return s->size; }
+size_t length(string s) { return s->size; }
 string strcpy_s_c(string dest, const char *search)
 {
 	const size_t len = strlen(search);
@@ -250,7 +252,7 @@ string strstr_s_c(string haystack, const char * needle)
 }
 
 #define String(a) _Generic((a), string : cpy_ctor, default : string_init) (a)
-#define strlen(a) _Generic((a), string  : length_ptr, default : strlen) (a)
+#define strlen(a) _Generic((a), string  : length, default : strlen) (a)
 #define strcpy(a, b) _Generic((a), string : _Generic(b, string : strcpy_s_s, char * : strcpy_s_c), default : strcpy) (a, b)
 #define strcat(a, b) _Generic((a), string : _Generic(b, string : strcat_s_s, char * : strcat_s_c), default : strcat) (a, b)
 #define strchr(a, b) _Generic((a), string : strchr_s, default : strchr) (a, b)
@@ -259,7 +261,6 @@ string strstr_s_c(string haystack, const char * needle)
 #define read_str_std(a, b, ...) read(a, b, __VA_ARGS__)
 #define read_str(a, b) read_string(a, b)
 #define read(a, b, ...) read_str ## __VA_OPT__(_std)(a, b __VA_OPT__(,) __VA_ARGS__)
-void pstring(string s) { write(1, s->buffer, s->size); }
 
 ssize_t read_string(int fd, string buf)
 {

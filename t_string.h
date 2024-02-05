@@ -19,16 +19,19 @@ enum STR_ERR {
 	TRUNCATED,
 };
 
-typedef char * iterator;
+typedef void * iterator;
 
+/* default string structure. Begin and End are meant to be used for range loop mechanic*/
 typedef struct s_string {
 	size_t size;
 	size_t capacity;
-	iterator begin;
-	iterator end;
+	char * begin;
+	char * end;
 	int error;
 	char buffer[];
 }	t_string;
+
+/* Testing fixed sized array for performance */
 typedef struct s_string_128 {
 	size_t size;
 	size_t capacity;
@@ -54,8 +57,10 @@ typedef struct s_string_4096 {
 	char buffer[4096];
 }	string_4096;
 
+/* typedef to string. You can't use regular string without malloc due to Flexible Array Member. If you need stack allocated string, try using fixed size structures */
 typedef t_string * string;
 
+/* printf logic to add a custom specifier. %T will print our string. This will generate compiler warnings */
 bool g_initialize_printf_spec = false;
 static int printf_arginfo_T(const struct printf_info *info, size_t n, int argtypes[n], int size[n])
 {
@@ -74,7 +79,10 @@ static int printf_output_T(FILE *stream, const struct printf_info *info, const v
     return str->size;
 } /* printf_output_T */
 
+/* String costructor. Initialize a string taking a char * as parameter. This enforce security. Manual initialization is possible,
+   although highly discouraged */
 string string_init(char *str) {
+	// printf spec
 	if (g_initialize_printf_spec == false) {
 		register_printf_specifier('T', printf_output_T, printf_arginfo_T);
 		g_initialize_printf_spec = true;
@@ -95,7 +103,9 @@ string string_init(char *str) {
 	s->buffer[len] = 0;
 	return s;
 }
+/* String copy costructor. It takes a string as parameter, and create a new allocated copy */
 string cpy_ctor(string str) {
+	// printf spec
 	if (g_initialize_printf_spec == false) {
 		register_printf_specifier('T', printf_output_T, printf_arginfo_T);
 		g_initialize_printf_spec = true;
@@ -112,6 +122,7 @@ string cpy_ctor(string str) {
 	s->buffer[s->size] = 0;
 	return s;
 }
+/* support function for to */
 string string_init_size(char *str, size_t len) {
 	size_t to_alloc = len < SMALL_CHUNK ? SMALL_CHUNK : len < MEDIUM_CHUNK ? MEDIUM_CHUNK : len < BIG_CHUNK ? BIG_CHUNK : len + SMALL_CHUNK;
 	string s = (string)malloc(sizeof(t_string) + to_alloc + 1);
@@ -126,7 +137,7 @@ string string_init_size(char *str, size_t len) {
 	s->buffer[len] = 0;
 	return s;
 }
-void emplace(string *s, size_t n) {
+void reserve(string *s, size_t n) {
 	*s = malloc(sizeof(t_string) + n);
 	(*s)->begin = &(*s)->buffer[0];
 	(*s)->end = (*s)->begin;
@@ -199,7 +210,8 @@ string strcat_s_s(string dest, const string search)
 	dest->buffer[dest->size] = 0;
 	return dest;
 }
-string strchr_s(string s, int c)
+
+string sstrchr_s(string s, int c)
 {
 	for (size_t i = 0; i < s->size; i++) {
 		if (s->buffer[i] == c) {
@@ -208,7 +220,7 @@ string strchr_s(string s, int c)
 	}
 	return NULL;
 }
-string strrchr_s(string s, int c)
+string sstrrchr_s(string s, int c)
 {
 	for (size_t i = s->size; i > 0; --i) {
 		if (s->buffer[i] == c) {
@@ -217,7 +229,7 @@ string strrchr_s(string s, int c)
 	}
 	return NULL;
 }
-string strstr_s_s(string haystack, const string needle)
+string sstrstr_s_s(string haystack, const string needle)
 {
 	for (size_t i = 0; i < haystack->size; i++) {
 		if (haystack->buffer[i] == needle->buffer[0]) {
@@ -232,7 +244,7 @@ string strstr_s_s(string haystack, const string needle)
 	}
 	return NULL;
 }
-string strstr_s_c(string haystack, const char * needle)
+string sstrstr_s_c(string haystack, const char * needle)
 {
 	size_t len = strlen(needle);
 	for (size_t i = 0; i < haystack->size; i++) {
@@ -251,13 +263,89 @@ string strstr_s_c(string haystack, const char * needle)
 	return NULL;
 }
 
+char *strchr_s(string s, int c)
+{
+	for (size_t i = 0; i < s->size; i++) {
+		if (s->buffer[i] == c) {
+			return &s->buffer[i];
+		}
+	}
+	return NULL;
+}
+char *strrchr_s(string s, int c)
+{
+	for (size_t i = s->size; i > 0; --i) {
+		if (s->buffer[i] == c) {
+			return &s->buffer[i];
+		}
+	}
+	return NULL;
+}
+char *strstr_s_s(string haystack, const string needle)
+{
+	for (size_t i = 0; i < haystack->size; i++) {
+		if (haystack->buffer[i] == needle->buffer[0]) {
+			for (size_t j = 0; j < needle->size && i < haystack->size; j++, i++) {
+				if (haystack->buffer[i] != needle->buffer[j]) {
+					break;
+				} else if (j == needle->size -1) {
+					return &haystack->buffer[i - j];
+				}
+			}
+		}
+	}
+	return NULL;
+}
+char *strstr_s_c(string haystack, const char * needle)
+{
+	size_t len = strlen(needle);
+	for (size_t i = 0; i < haystack->size; i++) {
+		if (haystack->buffer[i] == needle[0]) {
+			size_t tmp = i;
+			for (size_t j = 0; needle[j] && i < haystack->size; j++, i++) {
+				if (haystack->buffer[i] != needle[j]) {
+					i = tmp;
+					break;
+				} else if (j == len - 1) {
+					return &haystack->buffer[i - j];
+				}
+			}
+		}
+	}
+	return NULL;
+}
+
+#define ENSURE_SPACE(a, n) (n > a ? false : true)
+void push_back(string s, char c)
+{
+	if (!ENSURE_SPACE(s->capacity - s->size, 1)) {
+		string new;
+		reserve(&new, s->capacity + 10);
+		strcpy_s_s(new, s);
+		*s = *new;
+		free(new);
+		s->buffer[s->size] = c;
+		s->size++;
+		s->buffer[s->size] = 0;
+		s->end++;
+	} else {
+		s->buffer[s->size++] = c;
+		s->buffer[s->size] = 0;
+		s->end++;
+	}
+}
+
+#define EXTEND_CAP(s, n)
 #define String(a) _Generic((a), string : cpy_ctor, default : string_init) (a)
 #define strlen(a) _Generic((a), string  : length, default : strlen) (a)
 #define strcpy(a, b) _Generic((a), string : _Generic(b, string : strcpy_s_s, char * : strcpy_s_c), default : strcpy) (a, b)
 #define strcat(a, b) _Generic((a), string : _Generic(b, string : strcat_s_s, char * : strcat_s_c), default : strcat) (a, b)
 #define strchr(a, b) _Generic((a), string : strchr_s, default : strchr) (a, b)
+#define sstrchr(a, b) _Generic((a), string : sstrchr_s, default : strchr) (a, b)
 #define strrchr(a, b) _Generic((a), string : strrchr_s, default : strrchr) (a, b)
+#define sstrrchr(a, b) _Generic((a), string : sstrrchr_s, default : sstrrchr) (a, b)
 #define strstr(a, b) _Generic((a), string : _Generic(b, string: strstr_s_s, char * : strstr_s_c), default : strstr) (a, b)
+#define sstrstr(a, b) _Generic((a), string : _Generic(b, string: sstrstr_s_s, char * : sstrstr_s_c), default : strstr) (a, b)
 #define read_str_std(a, b, ...) read(a, b, __VA_ARGS__)
 #define read_str(a, b) read_string(a, b)
 #define read(a, b, ...) read_str ## __VA_OPT__(_std)(a, b __VA_OPT__(,) __VA_ARGS__)

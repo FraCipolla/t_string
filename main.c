@@ -27,7 +27,11 @@ int main()
     insert(insert_test, 500, "provaprova");
     insert(insert_test, 0, "provaprova");
     printf("%s\n", insert_test->buffer);
-    slice _slice = Slice(insert_test);
-    printf("slice %s\n", _slice->buffer);
+    pop_back(insert_test);
+    printf("%s\n", insert_test->buffer);
+    pop_back(insert_test);
+    printf("%s\n", insert_test->buffer);
+    pop_back(insert_test);
+    printf("%s\n", insert_test->buffer);
     free(insert_test);
 }

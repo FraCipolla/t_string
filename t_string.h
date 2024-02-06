@@ -154,7 +154,7 @@ void reserve(string *s, size_t n) {
 	(*s)->buffer[0] = 0;
 }
 void clear(string s) { memset(s->buffer, 0, s->size); s->size = 0; s->error=NO_ERR; s->buffer[0] = 0;}
-
+bool empty(string s) { return s->size > 0; }
 /* Returning length of string */
 size_t length(string s) { return s->size; }
 /* strcpy overload accepting a string as first parameter and char * as second */
@@ -446,6 +446,7 @@ void insert_s_s(string s, size_t pos, string to_insert)
 
 }
 
+/* overload of standard read function. It works with its intern size to perform reading operations. If read is less than current data, it clears all excessive data */
 ssize_t read_string(int fd, string buf)
 {
 	size_t old_size = buf->size;
@@ -462,6 +463,7 @@ ssize_t read_string(int fd, string buf)
 	return n;
 }
 
+/* return a char array with size */
 slice to_slice_s(string s)
 {
 	slice new = malloc(sizeof(t_slice) * s->size + 1);
@@ -471,7 +473,7 @@ slice to_slice_s(string s)
 	new->size = s->size;
 	return new;
 }
-
+/* return a char array with size */
 slice to_slice_c(char *s)
 {
 	size_t len = strlen(s);
@@ -499,3 +501,18 @@ slice to_slice_c(char *s)
 #define read_str_std(a, b, ...) read(a, b, __VA_ARGS__)
 #define read_str(a, b) read_string(a, b)
 #define read(a, b, ...) read_str ## __VA_OPT__(_std)(a, b __VA_OPT__(,) __VA_ARGS__)
+
+void shrink_to_fit(string s)
+{
+	string new;
+	reserve(&new, s->size);
+	strcpy(new, s);
+	*s = *new;
+	free(new);
+}
+
+void pop_back(string s)
+{
+	s->size--;
+	s->buffer[s->size] = 0;
+}

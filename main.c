@@ -22,4 +22,12 @@ int main()
     free(s);
     free(s3);
     free(fail);
+    string insert_test;
+    reserve(&insert_test, 200);
+    insert(insert_test, 500, "provaprova");
+    insert(insert_test, 0, "provaprova");
+    printf("%s\n", insert_test->buffer);
+    slice _slice = Slice(insert_test);
+    printf("slice %s\n", _slice->buffer);
+    free(insert_test);
 }

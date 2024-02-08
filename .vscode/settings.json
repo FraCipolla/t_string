@@ -4,6 +4,10 @@
         "compare": "cpp",
         "type_traits": "cpp",
         "random": "cpp",
-        "vector": "c"
+        "vector": "c",
+        "array": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "utility": "c"
     }
 }

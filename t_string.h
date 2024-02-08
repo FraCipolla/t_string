@@ -98,7 +98,7 @@ string string_init(char *str) {
 	size_t to_alloc = len < SMALL_CHUNK ? SMALL_CHUNK : len < MEDIUM_CHUNK ? MEDIUM_CHUNK : len < BIG_CHUNK ? BIG_CHUNK : len + SMALL_CHUNK;
 	string s = (string)malloc(sizeof(t_string) + to_alloc + 1);
 	if (!s) {
-		return &(t_string){.error=HEAP_ALLOC_ERROR};
+		return NULL;
 	}
 	s->capacity = to_alloc;
 	s->size = len;
@@ -108,6 +108,21 @@ string string_init(char *str) {
 		s->buffer[i] = str[i];
 	}
 	s->buffer[len] = 0;
+	return s;
+}
+/* string constructor for empty string */
+string string_init_empty(size_t cap)
+{
+	// printf spec
+	if (g_initialize_printf_spec == false) {
+		register_printf_specifier('T', printf_output_T, printf_arginfo_T);
+		g_initialize_printf_spec = true;
+	}
+	string s = malloc(sizeof(t_string) + cap);
+	if (!s) {
+		return NULL;
+	}
+	*s = (t_string){.capacity=cap, .begin=&s->buffer[0], .end=&s->buffer[0]};
 	return s;
 }
 /* String copy costructor. It takes a string as parameter, and create a new allocated copy */
@@ -153,10 +168,35 @@ void reserve(string *s, size_t n) {
 	(*s)->size = 0;
 	(*s)->buffer[0] = 0;
 }
-void clear(string s) { memset(s->buffer, 0, s->size); s->size = 0; s->error=NO_ERR; s->buffer[0] = 0;}
+void clear(string s) { memset(s->buffer, 0, s->size); s->size = 0; s->error=NO_ERR; s->end=&s->buffer[0];}
 bool empty(string s) { return s->size > 0; }
 /* Returning length of string */
 size_t length(string s) { return s->size; }
+
+int strcmp_s_c(const string s, const char *s2)
+{
+	size_t i = 0;
+	while (s->buffer[i] && s2[i] && i < s->size && s->buffer[i] == s2[i]) {
+		++i;
+	}
+	return (s->buffer[i] - s2[i]);
+}
+int strcmp_s_s(const string s, const string s2)
+{
+	size_t i = 0;
+	while (s->buffer[i] && s2->buffer[i] && i < s->size && i < s2->size && s->buffer[i] == s2->buffer[i]) {
+		++i;
+	}
+	return (s->buffer[i] - s2->buffer[i]);
+}
+int strcmp_c_s(const char * s, const string s2)
+{
+	size_t i = 0;
+	while (s[i] && s2->buffer[i] && i < s2->size && s[i] == s2->buffer[i]) {
+		++i;
+	}
+	return (s[i] - s2->buffer[i]);
+}
 /* strcpy overload accepting a string as first parameter and char * as second */
 string strcpy_s_c(string dest, const char *search)
 {
@@ -486,10 +526,19 @@ slice to_slice_c(char *s)
 }
 
 #define append strcat
+/* macro to check if accessing string is between range */
+#define at(s, pos) \
+	if (pos < 0) { fprintf(stderr,"%s line %d: error:\n\tpos must be positive\n", __FILE__, __LINE__); } \
+	else if (pos >= s->size) { fprintf(stderr, "%s line %d:\n\terror: out of range\n", __FILE__, __LINE__); } \
+	else s->buffer[pos]
 #define Slice(a) _Generic ((a), string : to_slice_s, char * : to_slice_c) (a)
 #define insert(a, b, c) _Generic((c), string : insert_s_s, char * : insert_s_c) (a, b, c)
-#define String(a) _Generic((a), string : cpy_ctor, default : string_init) (a)
+#define String(a) _Generic((a), string : cpy_ctor, int : string_init_empty, char * : string_init) (a)
 #define strlen(a) _Generic((a), string  : length, default : strlen) (a)
+#define strcmp(a, b) _Generic((a), \
+	string : _Generic(b, char * : strcmp_s_c, string : strcmp_s_s), \
+	char * : _Generic(b, string : strcmp_c_s, char * : strcmp), \
+	default : strcmp) (a, b)
 #define strcpy(a, b) _Generic((a), string : _Generic(b, string : strcpy_s_s, char * : strcpy_s_c), default : strcpy) (a, b)
 #define strcat(a, b) _Generic((a), string : _Generic(b, string : strcat_s_s, char * : strcat_s_c), default : strcat) (a, b)
 #define strchr(a, b) _Generic((a), string : strchr_s, default : strchr) (a, b)

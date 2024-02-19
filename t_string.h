@@ -8,6 +8,8 @@
 # include <stdarg.h>
 # include <unistd.h>
 
+#include <assert.h>
+
 #define SMALL_CHUNK 128
 #define MEDIUM_CHUNK 512
 #define BIG_CHUNK 2048
@@ -25,10 +27,17 @@ typedef void * iterator;
 /* struct to store an array with known size */
 typedef struct s_slice {
 	size_t size;
-	char buffer[];
+	char *const buffer;
 }	t_slice;
 
-typedef t_slice * slice;
+typedef struct s_view {
+	size_t size;
+	const char *const buffer;
+}	t_view;
+
+typedef const t_view string_view;
+
+typedef t_slice slice;
 /* default string structure. Begin and End are meant to be used for range loop mechanic*/
 typedef struct s_string {
 	size_t size;
@@ -201,10 +210,11 @@ int strcmp_c_s(const char * s, const string s2)
 string strcpy_s_c(string dest, const char *search)
 {
 	const size_t len = strlen(search);
-	if (len >= dest->capacity) {
-		// #warning not enought storage for strcpy, dest will be truncated
-		dest->error = TRUNCATED;
-	}
+	// constexpr len_diff = len >= dest->capacity;
+	// if (len_diff < 0) {
+	// 	static_assert(len_diff < 0, "out_of_range");
+	// 	dest->error = TRUNCATED;
+	// }
 	size_t i = 0;
 	while (i < dest->capacity && search[i]) {
 		dest->buffer[i] = search[i];
@@ -503,26 +513,62 @@ ssize_t read_string(int fd, string buf)
 	return n;
 }
 
-/* return a char array with size */
+/* slice are pointer to string with size. Needs to be allocated before */
 slice to_slice_s(string s)
 {
-	slice new = malloc(sizeof(t_slice) * s->size + 1);
-	for (size_t i = 0; i < s->size; i++) {
-		new->buffer[i] = s->buffer[i];
-	}
-	new->size = s->size;
-	return new;
+	return (t_slice){.size=s->size, .buffer=s->begin};
 }
-/* return a char array with size */
+
 slice to_slice_c(char *s)
 {
-	size_t len = strlen(s);
-	slice new = malloc(sizeof(t_slice) + len + 1);
-	for (size_t i = 0; i < len; i++) {
-		new->buffer[i] = s[i];
+	return (t_slice){.size=strlen(s), .buffer=s};
+}
+
+/* string_view are read-only pointer to string with size */
+string_view s_view_s(const string s) {
+	return (t_view){.size = s->size, .buffer=s->begin};
+}
+
+string_view s_view_c(const char *s) {
+	return (t_view){.size = strlen(s), .buffer=s};
+}
+
+/* overload on memcpy. Append at max dest capacity, can't buffer overflow */
+void * memcpy_s(string dest, const char *source) {
+	printf("memcpy_s\n");
+	size_t len = strlen(source);
+	if (strlen(source) > dest->capacity) {
+		memcpy(dest->buffer, source, dest->capacity);
+	} else {
+		memcpy(dest->buffer, source, len);
 	}
-	new->size = len;
-	return new;
+}
+void * memcpy_s_with_size(string dest, const char *source, size_t size) {
+	if (size > strlen(source)) {
+		size = strlen(source);
+	}
+	if (size > dest->capacity) {
+		memcpy(dest->buffer, source, dest->capacity);
+	} else {
+		memcpy(dest->buffer, source, size);
+	}
+}
+void * memcpy_s_s(string dest, const string source) {
+	if (source->size > dest->capacity) {
+		memcpy(dest->buffer, source->buffer, dest->capacity);
+	} else {
+		memcpy(dest->buffer, source, source->size);
+	}
+}
+void * memcpy_s_s_with_size(string dest, const string source, size_t size) {
+	if (size > source->size) {
+		size = source->size;
+	}
+	if (size > dest->capacity) {
+		memcpy(dest->buffer, source, dest->capacity);
+	} else {
+		memcpy(dest->buffer, source, size);
+	}
 }
 
 #define append strcat
@@ -531,6 +577,10 @@ slice to_slice_c(char *s)
 	if (pos < 0) { fprintf(stderr,"%s line %d: error:\n\tpos must be positive\n", __FILE__, __LINE__); } \
 	else if (pos >= s->size) { fprintf(stderr, "%s line %d:\n\terror: out of range\n", __FILE__, __LINE__); } \
 	else s->buffer[pos]
+#define expand_memcpy_args(a, b, c) _Generic((a), string : _Generic((b), char * : memcpy_s_with_size, string : memcpy_s_s_with_size), default : memcpy) (a, b, c)
+#define expand_memcpy(a, b) _Generic((a), string : _Generic(b, string : memcpy_s_s, char * : memcpy_s)) (a, b)
+#define memcpy(a, b, ...) expand_memcpy ## __VA_OPT__(_args)(a, b __VA_OPT__(,) __VA_ARGS__)
+#define String_view(a) _Generic((a), string : s_view_s, char * : s_view_c) (a)
 #define Slice(a) _Generic ((a), string : to_slice_s, char * : to_slice_c) (a)
 #define insert(a, b, c) _Generic((c), string : insert_s_s, char * : insert_s_c) (a, b, c)
 #define String(a) _Generic((a), string : cpy_ctor, int : string_init_empty, char * : string_init) (a)

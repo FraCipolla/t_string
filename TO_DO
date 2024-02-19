@@ -1,0 +1,1 @@
+- slice should be a new allocated string or a pointer to a string with size?

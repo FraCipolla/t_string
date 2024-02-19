@@ -45,4 +45,6 @@ int main()
     string s = String("prova");
     string s2 = String("prova2");
     printf("strcmp %d\n", strcmp(s, s2));
+    printf("%s\n", s->buffer);
+    printf("%T\n", s);
 }
